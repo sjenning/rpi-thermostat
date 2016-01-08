@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
-	"time"
 
 	"github.com/paypal/gatt"
 	"github.com/paypal/gatt/examples/option"
-	"github.com/stianeikeland/go-rpio"
 )
 
 var done = make(chan struct{})
@@ -49,13 +48,23 @@ func onPeriphDiscovered(p gatt.Peripheral, a *gatt.Advertisement, rssi int) {
 
 func convertTemp(b []byte) float32 {
 	rawdata := binary.LittleEndian.Uint16(b)
-	//fmt.Printf("rawdata %d\n", rawdata)
 	return (float32(rawdata)/4.0)*float32(0.03125)*(9.0/5.0) + 32
+}
+
+func handleTempNotification(c *gatt.Characteristic, b []byte, err error) {
+	t := convertTemp(b[2:4])
+	//fmt.Printf("%fF\n", t)
+	ControllerReportTemperature(t)
 }
 
 func onPeriphConnected(p gatt.Peripheral, err error) {
 	fmt.Println("Connected")
-	defer p.Device().CancelConnection(p)
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
+		<-c
+		p.Device().CancelConnection(p)
+	}()
 
 	err = p.SetMTU(500)
 	if err != nil {
@@ -67,8 +76,6 @@ func onPeriphConnected(p gatt.Peripheral, err error) {
 		fmt.Printf("Failed to create UUID, err: %s\n", err)
 		return
 	}
-
-	fmt.Printf("UUID: %s\n", uuid.String())
 
 	ss, err := p.DiscoverServices(nil)
 	if err != nil {
@@ -83,76 +90,43 @@ func onPeriphConnected(p gatt.Peripheral, err error) {
 		}
 	}
 
-	fmt.Printf("%s\n", s.UUID().String())
-
 	cs, err := p.DiscoverCharacteristics(nil, s)
 	if err != nil {
 		fmt.Printf("Failed to discover characteristics, err: %s\n", err)
 		return
 	}
 
+	for _, c := range cs {
+		_, err = p.DiscoverDescriptors(nil, c)
+		if err != nil {
+			fmt.Printf("Failed to discover descriptors, err: %s\n", err)
+			return
+		}
+	}
+
 	data := cs[0]
 	config := cs[1]
 	samplerate := cs[2]
 
-	err = p.WriteCharacteristic(samplerate, []byte{0x0A}, false)
-	if err != nil {
-		fmt.Printf("Failed to write samplerate characteristics, err: %s\n", err)
-		return
-	}
-
-	err = p.WriteCharacteristic(config, []byte{0x01}, false)
+	// Turn on notifications
+	err = p.SetNotifyValue(data, handleTempNotification)
 	if err != nil {
 		fmt.Printf("Failed to write config characteristics, err: %s\n", err)
 		return
 	}
 
-	if err = rpio.Open(); err != nil {
-		fmt.Printf("Failed to open GPIO, err: %s\n", err)
+	// Set sample rate
+	err = p.WriteCharacteristic(samplerate, []byte{0xFF}, false)
+	if err != nil {
+		fmt.Printf("Failed to write samplerate characteristics, err: %s\n", err)
 		return
 	}
 
-	defer rpio.Close()
-
-	pins := make([]rpio.Pin, 5)
-	pins[0] = rpio.Pin(17)
-	pins[1] = rpio.Pin(21)
-	pins[2] = rpio.Pin(22)
-	pins[3] = rpio.Pin(23)
-	pins[4] = rpio.Pin(24)
-
-	for _, l := range pins {
-		l.Output()
-	}
-
-	levels := []float32{0.0, 68.0, 72.0, 76.0, 80.0}
-
-	for i := 0; i < 300; i++ {
-		bytes, err := p.ReadCharacteristic(data)
-		if err != nil {
-			fmt.Printf("Failed to read data characteristics, err: %s\n", err)
-		}
-
-		//fmt.Printf("Data: %x\n", bytes)
-		ambtemp := convertTemp(bytes[2:4])
-		fmt.Println("AMB", ambtemp)
-		objtemp := convertTemp(bytes[0:2])
-		fmt.Println("OBJ", objtemp)
-		fmt.Println()
-
-		for i, l := range levels {
-			if objtemp > l {
-				pins[i].High()
-			} else {
-				pins[i].Low()
-			}
-		}
-
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	for _, l := range pins {
-		l.Low()
+	// Start sensors
+	err = p.WriteCharacteristic(config, []byte{0x01}, false)
+	if err != nil {
+		fmt.Printf("Failed to write config characteristics, err: %s\n", err)
+		return
 	}
 }
 
@@ -181,6 +155,7 @@ func main() {
 	)
 
 	d.Init(onStateChanged)
+
 	<-done
 	fmt.Println("Done")
 }
