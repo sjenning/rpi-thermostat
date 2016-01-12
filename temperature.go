@@ -2,18 +2,13 @@ package main
 
 import (
 	"encoding/binary"
-	"flag"
 	"fmt"
 	"log"
-	"os"
-	"os/signal"
 	"strings"
 
 	"github.com/paypal/gatt"
-	"github.com/paypal/gatt/examples/option"
+	"github.com/paypal/gatt/linux/cmd"
 )
-
-var done = make(chan struct{})
 
 func onStateChanged(d gatt.Device, s gatt.State) {
 	fmt.Println("State:", s)
@@ -27,9 +22,10 @@ func onStateChanged(d gatt.Device, s gatt.State) {
 	}
 }
 
+var pid string
+
 func onPeriphDiscovered(p gatt.Peripheral, a *gatt.Advertisement, rssi int) {
-	id := strings.ToUpper(flag.Args()[0])
-	if strings.ToUpper(p.ID()) != id {
+	if strings.ToUpper(p.ID()) != pid {
 		return
 	}
 
@@ -46,25 +42,24 @@ func onPeriphDiscovered(p gatt.Peripheral, a *gatt.Advertisement, rssi int) {
 	p.Device().Connect(p)
 }
 
-func convertTemp(b []byte) float32 {
+func convertTemp(b []byte) int {
 	rawdata := binary.LittleEndian.Uint16(b)
-	return (float32(rawdata)/4.0)*float32(0.03125)*(9.0/5.0) + 32
+	return int((float32(rawdata)/4.0)*float32(0.03125)*(9.0/5.0) + 32)
 }
 
 func handleTempNotification(c *gatt.Characteristic, b []byte, err error) {
-	t := convertTemp(b[2:4])
-	//fmt.Printf("%fF\n", t)
-	ControllerReportTemperature(t)
+	//t := convertTemp(b[2:4])
+	t := convertTemp(b[0:2]) // TESTING ONLY
+	if t > 50 && t < 90 {    // sanity range
+		ThermostatReportCurrentTemperature(int(t))
+	}
 }
+
+var gp gatt.Peripheral
 
 func onPeriphConnected(p gatt.Peripheral, err error) {
 	fmt.Println("Connected")
-	go func() {
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-		<-c
-		p.Device().CancelConnection(p)
-	}()
+	gp = p
 
 	err = p.SetMTU(500)
 	if err != nil {
@@ -130,22 +125,45 @@ func onPeriphConnected(p gatt.Peripheral, err error) {
 	}
 }
 
+var tsdone = make(chan bool)
+
 func onPeriphDisconnected(p gatt.Peripheral, err error) {
 	fmt.Println("Disconnected")
-	close(done)
+	if gp != nil {
+		gp.Device().CancelConnection(gp)
+		gp = nil
+	}
+	tsdone <- true
 }
 
-func main() {
-	flag.Parse()
-	if len(flag.Args()) != 1 {
-		log.Fatalf("usage: %s [options] peripheral-id\n", os.Args[0])
-	}
+func TemperatureExit() {
+	gp.Device().CancelConnection(gp)
+	<-tsdone
+}
 
-	d, err := gatt.NewDevice(option.DefaultClientOptions...)
+var DefaultClientOptions = []gatt.Option{
+	gatt.LnxMaxConnections(1),
+	gatt.LnxDeviceID(-1, true),
+}
+
+var DefaultServerOptions = []gatt.Option{
+	gatt.LnxMaxConnections(1),
+	gatt.LnxDeviceID(-1, true),
+	gatt.LnxSetAdvertisingParameters(&cmd.LESetAdvertisingParameters{
+		AdvertisingIntervalMin: 0x00f4,
+		AdvertisingIntervalMax: 0x00f4,
+		AdvertisingChannelMap:  0x7,
+	}),
+}
+
+func TemperatureInit(id string) {
+	d, err := gatt.NewDevice(DefaultClientOptions...)
 	if err != nil {
 		log.Fatalf("Failed to open device, err: %s\n", err)
 		return
 	}
+
+	pid = id
 
 	// Register handlers.
 	d.Handle(
@@ -155,7 +173,4 @@ func main() {
 	)
 
 	d.Init(onStateChanged)
-
-	<-done
-	fmt.Println("Done")
 }
