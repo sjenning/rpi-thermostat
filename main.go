@@ -248,12 +248,13 @@ func onPeriphDisconnected(p gatt.Peripheral, err error) {
 }
 
 func updateState() {
-	log.Printf("current: %d, desired: %d, sysmode: %s, fanmode: %s\n", current, desired, sysmode, fanmode)
 	if current == 0 {
 		Stop(fan)
 		Stop(cool)
 		Stop(heat)
+		return
 	}
+	log.Printf("current: %d, desired: %d, sysmode: %s, fanmode: %s\n", current, desired, sysmode, fanmode)
 	switch sysmode {
 	case "off":
 		Stop(heat)
