@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"time"
 
 	"github.com/paypal/gatt"
 	"github.com/paypal/gatt/linux/cmd"
@@ -287,6 +288,13 @@ func updateState() {
 	if fanmode == "on" {
 		Start(fan)
 	}
+	go func() {
+		led := rpio.Pin(16)
+		led.Output()
+		led.Low()
+		<-time.After(100 * time.Millisecond)
+		led.High()
+	}()
 }
 
 func main() {
