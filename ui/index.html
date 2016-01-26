@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="thermostat">
+<head>
+	<title>Thermostat Control</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+	<link rel="stylesheet" href="/css/bootstrap.min.css">
+	<link rel="icon" type="image/png" href="/thermostat.png" sizes="192x192">
+</head>
+<body ng-controller="ThermostatCtrl">
+
+<div class="container-fluid" style="width:240px">
+
+<div>
+<p><h1>{{state.desired}}</h1></p>
+<p>{{state.current}}</p>
+</div>
+
+<div>
+<button class="btn btn-default btn-lg" ng-click="changeDesired(1)">
+<span class="glyphicon glyphicon-chevron-up"></span>
+</button>
+<button class="btn btn-default btn-lg" ng-click="changeDesired(-1)">
+<span class="glyphicon glyphicon-chevron-down"></span>
+</button>
+</div>
+
+<div style="margin-top:10px">
+<div>System</div>
+<div class="btn-group" role="group">
+<button ng-class="{'active': state.sysmode == 'off'}" class="btn btn-default btn-lg" ng-click="setSystemMode('off')">Off</button>
+<button ng-class="{'active': state.sysmode == 'cool'}" class="btn btn-default btn-lg" ng-click="setSystemMode('cool')">Cool</button>
+<button ng-class="{'active': state.sysmode == 'heat'}" class="btn btn-default btn-lg" ng-click="setSystemMode('heat')">Heat</button>
+</div>
+</div>
+
+<div style="margin-top:10px">
+<div>Fan</div>
+<div class="btn-group" role="group">
+<button ng-class="{'active': state.fanmode == 'auto'}" class="btn btn-default btn-lg" ng-click="setFanMode('auto')">Auto</button>
+<button ng-class="{'active': state.fanmode == 'on'}" class="btn btn-default btn-lg" ng-click="setFanMode('on')">On</button>
+</div>
+</div>
+
+</div>
+
+</body>
+
+<script src="/js/angular.min.js"></script>
+<script src="/js/angular-resource.min.js"></script>
+<script type="text/javascript">
+
+var thermostat = new angular.module("thermostat", ["ngResource"]);
+
+thermostat.controller("ThermostatCtrl", ["$scope", "$resource", "$interval", function ($scope, $resource, $interval) {
+	var State = $resource(window.location.protocol + "//" + window.location.host + "/api/", {}, {query: {isArray: false}});
+	$scope.state = State.query();
+
+	$scope.setSystemMode = function(mode) {
+		$scope.state.sysmode = mode
+		console.log($scope.state.$save());
+	}
+	
+	$scope.setFanMode = function(mode) {
+		$scope.state.fanmode = mode
+		$scope.state.$save();
+	}
+	
+	$scope.changeDesired = function(change) {
+		$scope.state.desired = $scope.state.desired + change;
+		$scope.state.$save();
+	}
+}]);
+
+</script>
+
+</html>

@@ -67,10 +67,10 @@ func updateHandler(r *http.Request) int {
 		return http.StatusBadRequest
 	}
 
-	if t.Desired > 60 && t.Desired < 85 {
+	if t.Desired >= 60 && t.Desired <= 85 {
 		desired = t.Desired
 	}
-	if t.Current > 50 && t.Current < 90 {
+	if t.Current >= 50 && t.Current <= 90 {
 		current = t.Current
 	}
 	sysmode = t.Sysmode
@@ -96,7 +96,7 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		code = http.StatusNotImplemented
 	}
-
+	log.Printf("current: %d, desired: %d, sysmode: %s, fanmode: %s\n", current, desired, sysmode, fanmode)
 	response := Thermostat{current, desired, sysmode, fanmode}
 	json, err := json.Marshal(response)
 	if err != nil {
@@ -254,7 +254,6 @@ func updateState() {
 		Stop(heat)
 		return
 	}
-	log.Printf("current: %d, desired: %d, sysmode: %s, fanmode: %s\n", current, desired, sysmode, fanmode)
 	switch sysmode {
 	case "off":
 		Stop(heat)
@@ -315,8 +314,9 @@ func main() {
 	d.Init(onStateChanged)
 
 	// API
-	http.HandleFunc("/", apiHandler)
-	go http.ListenAndServe(":8000", nil)
+	http.HandleFunc("/api", apiHandler)
+	http.Handle("/", http.FileServer(http.Dir("./ui")))
+	go http.ListenAndServe(":80", nil)
 
 	// GPIO
 	err = rpio.Open()

@@ -1,0 +1,12 @@
+[Unit]
+Description=Raspberry Pi Thermostat
+After=network.target
+
+[Service]
+ExecStart=/root/rpi-thermostat
+WorkingDirectory=/root
+KillSignal=SIGINT
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
