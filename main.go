@@ -82,17 +82,11 @@ func updateHandler(r *http.Request) int {
 func apiHandler(w http.ResponseWriter, r *http.Request) {
 	var code int
 
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
 	switch r.Method {
 	case "GET":
 		code = http.StatusOK
 	case "POST":
 		code = updateHandler(r)
-	case "OPTIONS":
-		w.Header().Set("Allow", "GET,POST,OPTIONS")
-		return
 	default:
 		code = http.StatusNotImplemented
 	}
