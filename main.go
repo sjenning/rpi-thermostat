@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -291,7 +292,53 @@ func updateState() {
 	}()
 }
 
+func readSettingsFile() error {
+	settingsFile, err := os.Open("settings.json")
+	if err != nil {
+		return fmt.Errorf("settings.json file not found, using defaults")
+	}
+
+	var settings Thermostat
+	if err = json.NewDecoder(settingsFile).Decode(&settings); err != nil {
+		return err
+	}
+
+	desired = settings.Desired
+	fanmode = settings.Fanmode
+	sysmode = settings.Sysmode
+	settingsFile.Close()
+	return nil
+}
+
+func writeSettingsFile() error {
+	settingsFile, err := os.Create("settings.json")
+	if err != nil {
+		return err
+	}
+	defer settingsFile.Close()
+
+	var settings Thermostat
+	settings.Desired = desired
+	settings.Fanmode = fanmode
+	settings.Sysmode = sysmode
+	output, err := json.Marshal(settings)
+	if err != nil {
+		return err
+	}
+	_, err = settingsFile.Write(output)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func main() {
+	err := readSettingsFile()
+	if err != nil {
+		log.Printf("WARNING: %s", err)
+	}
+	defer writeSettingsFile()
+
 	// Sensor
 	d, err := gatt.NewDevice(DefaultClientOptions...)
 	if err != nil {
