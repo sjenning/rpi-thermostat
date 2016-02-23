@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	current = 75
+	current = 0
 	desired = 75
 	fanmode = "auto"
 	sysmode = "off"
@@ -385,8 +385,13 @@ func main() {
 	<-done
 
 	exiting = true
+	Stop(fan)
+	Stop(cool)
+	Stop(heat)
 	if peripheral != nil {
 		d.CancelConnection(peripheral)
 		<-disconnected
+		return
 	}
+	os.Exit(1)
 }
