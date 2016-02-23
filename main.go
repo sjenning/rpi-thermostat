@@ -230,16 +230,15 @@ func onPeriphConnected(p gatt.Peripheral, err error) {
 	}
 }
 
+var done = make(chan bool)
+
 func onPeriphDisconnected(p gatt.Peripheral, err error) {
 	if exiting {
 		disconnected <- true
-		return
+	} else {
+		done <- true
+		peripheral = nil
 	}
-	current = 0
-	updateState()
-	peripheral = nil
-	log.Println("Connection lost, resuming scanning...")
-	p.Device().Scan([]gatt.UUID{}, false)
 }
 
 func updateState() {
@@ -377,7 +376,6 @@ func main() {
 		Stop(p)
 	}
 
-	done := make(chan bool)
 	go func() {
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt)
