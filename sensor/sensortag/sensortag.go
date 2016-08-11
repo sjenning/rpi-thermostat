@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/paypal/gatt"
-	"github.com/spartacus06/rpi-thermostat/sensor"
+	"github.com/sjenning/rpi-thermostat/sensor"
 )
 
 type sensorTag struct {

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/spartacus06/rpi-thermostat/controller"
-	"github.com/spartacus06/rpi-thermostat/sensor"
+	"github.com/sjenning/rpi-thermostat/controller"
+	"github.com/sjenning/rpi-thermostat/sensor"
 )
 
 type Thermostat struct {
@@ -17,6 +17,13 @@ type Thermostat struct {
 	current    int
 }
 
+type ThermostatState struct {
+	Current int    `json:"current"`
+	Desired int    `json:"desired"`
+	Sysmode string `json:"sysmode"`
+	Fanmode string `json:"fanmode"`
+}
+
 func NewThermostat(sensor sensor.Sensor, controller controller.Controller, desired int) (*Thermostat, error) {
 	return &Thermostat{
 		sensor:     sensor,
@@ -26,39 +33,37 @@ func NewThermostat(sensor sensor.Sensor, controller controller.Controller, desir
 	}, nil
 }
 
-func (t *Thermostat) Run(done chan struct{}) {
+func (t *Thermostat) Run() {
 	for {
-		select {
-		case <-time.After(time.Minute):
-		case <-done:
-			return
-		}
 		current, err := t.sensor.GetTemperature()
 		if err != nil {
 			fmt.Println(err)
 			fmt.Printf("switching system off due to sensor failure")
 			t.controller.Off()
 			t.sysmode = "off"
-			continue
+		} else {
+			t.current = current
+			t.Update()
 		}
-		t.current = current
-		t.Update()
+		<-time.After(time.Minute)
 	}
 }
 
-func (t *Thermostat) SetSysMode(mode string) {
-	t.sysmode = mode
+func (t *Thermostat) Put(state ThermostatState) {
+	t.current = state.Current
+	t.desired = state.Desired
+	t.sysmode = state.Sysmode
+	t.fanmode = state.Fanmode
 	t.Update()
 }
 
-func (t *Thermostat) SetFanMode(mode string) {
-	t.fanmode = mode
-	t.Update()
-}
-
-func (t *Thermostat) SetDesired(desired int) {
-	t.desired = desired
-	t.Update()
+func (t *Thermostat) Get() ThermostatState {
+	return ThermostatState{
+		Current: t.current,
+		Desired: t.desired,
+		Sysmode: t.sysmode,
+		Fanmode: t.fanmode,
+	}
 }
 
 func (t *Thermostat) Update() {

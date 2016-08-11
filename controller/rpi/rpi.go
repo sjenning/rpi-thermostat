@@ -3,7 +3,7 @@ package rpi
 import (
 	"fmt"
 
-	"github.com/spartacus06/rpi-thermostat/controller"
+	"github.com/sjenning/rpi-thermostat/controller"
 	"github.com/stianeikeland/go-rpio"
 )
 
