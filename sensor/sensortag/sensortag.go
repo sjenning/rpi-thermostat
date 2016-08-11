@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/paypal/gatt"
 	"github.com/sjenning/rpi-thermostat/sensor"
@@ -93,6 +94,7 @@ func NewSensorTag() (sensor.Sensor, error) {
 	)
 
 	device.Init(onStateChanged)
+	device.Scan([]gatt.UUID{}, false)
 	return s, nil
 }
 
@@ -100,15 +102,28 @@ func (s *sensorTag) GetTemperature() (int, error) {
 	if s.peripheral == nil {
 		return 0, fmt.Errorf("sensor not connected")
 	}
+
 	err := s.peripheral.WriteCharacteristic(s.config, []byte{0x01}, false)
 	if err != nil {
 		return 0, fmt.Errorf("failed to enable sensor: %s\n", err)
 	}
+
+	<-time.After(3 * time.Second)
 
 	bytes, err := s.peripheral.ReadCharacteristic(s.data)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read from sensor: %s\n", err)
 	}
 
-	return int((float32(binary.LittleEndian.Uint16(bytes[2:4]))/4.0)*float32(0.03125)*(9.0/5.0) + 32), nil
+	err = s.peripheral.WriteCharacteristic(s.config, []byte{0x00}, false)
+	if err != nil {
+		return 0, fmt.Errorf("failed to enable sensor: %s\n", err)
+	}
+
+	sample := binary.LittleEndian.Uint16(bytes[2:4])
+	if sample == 0 {
+		return 0, fmt.Errorf("sensor returned invalid data")
+	}
+
+	return int((float32(sample)/4.0)*float32(0.03125)*(9.0/5.0)) + 32, nil
 }

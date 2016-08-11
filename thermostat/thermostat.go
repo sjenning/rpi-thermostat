@@ -28,12 +28,15 @@ func NewThermostat(sensor sensor.Sensor, controller controller.Controller, desir
 	return &Thermostat{
 		sensor:     sensor,
 		controller: controller,
+		sysmode:    "off",
+		fanmode:    "auto",
 		desired:    desired,
 		current:    0,
 	}, nil
 }
 
 func (t *Thermostat) Run() {
+	<-time.After(5 * time.Second)
 	for {
 		current, err := t.sensor.GetTemperature()
 		if err != nil {

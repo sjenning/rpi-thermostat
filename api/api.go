@@ -40,7 +40,7 @@ func (s *apiserver) apiHandler(w http.ResponseWriter, r *http.Request) {
 		code = http.StatusNotImplemented
 	}
 	response := s.thermostat.Get()
-	fmt.Printf("%#v", response)
+	fmt.Printf("%#v\n", response)
 	json, err := json.Marshal(response)
 	if err != nil {
 		http.Error(w, "Error marshalling JSON", http.StatusInternalServerError)
